@@ -29,6 +29,7 @@ namespace CameraTriggerSaver
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
 
     using AVT.VmbAPINET;
 
@@ -40,89 +41,72 @@ namespace CameraTriggerSaver
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
-        /// <param name="args">The command line arguments</param>
-        private static void Main(string[] args)
+        /// <param name="cameraID">Camera ID to open - leave blank for first available</param>
+        /// <param name="path">Image save folder path</param>
+        /// <param name="shotSize">Number of pictures in a shot</param>
+        private static void Main(string cameraID = null, string path = ".\\", int shotSize = 3)
         {
             VimbaHelper.FrameInfos showFrameInfos = VimbaHelper.FrameInfos.Show;           // Show frame info's
-            bool printhelp = false;                // Output help?
-            string cameraID = null;                // The camera ID
-            string path = null;                    // Image save path
 
-            Console.WriteLine();
-            Console.WriteLine("///////////////////////////////////////////");
-            Console.WriteLine("/// Vimba API Camera Trigger Saver      ///");
-            Console.WriteLine("///////////////////////////////////////////");
-            Console.WriteLine();
+            Console.WriteLine("\n//////////////////////////////////////////////////////");
+            Console.WriteLine("Vimba API Camera Trigger Saver (+ higher corrections)");
+            Console.WriteLine("//////////////////////////////////////////////////////\n");
 
             try
             {
-                ParseCommandLine(args, ref showFrameInfos, ref printhelp, ref cameraID, ref path);
+                // Create a new Vimba entry object
+                VimbaHelper vimbaHelper = new VimbaHelper(path, shotSize);
+                vimbaHelper.Startup(); // Startup API
+                Console.WriteLine("Vimba .NET API Version {0}", vimbaHelper.GetVersion());
 
-                // Print out help and end program
-                if (printhelp)
+                // Open camera
+                try
                 {
-                    Console.WriteLine("Usage: CameraTriggerSaver [CameraID] [/i] [/h]");
-                    Console.WriteLine("Parameters:   Path        Image save path (folder)");
-                    Console.WriteLine("              /i          Show frame info's");
-                    Console.WriteLine("              /a          Automatically only show frame info's of corrupt frames\n");
-                    Console.WriteLine("              /h          Print out help");
-                }
-                else
-                {
-                    // Create a new Vimba entry object
-                    VimbaHelper vimbaHelper = new VimbaHelper();
-                    vimbaHelper.Startup(); // Startup API
-                    Console.WriteLine("Vimba .NET API Version {0}", vimbaHelper.GetVersion());
-
-                    // Open camera
-                    try
+                    if (null == cameraID)
                     {
-                        if (null == cameraID)
+                        // Open first available camera
+
+                        // Fetch all cameras known to Vimba
+                        List<Camera> cameras = vimbaHelper.CameraList;
+                        if (cameras.Count < 0)
                         {
-                            // Open first available camera
+                            throw new Exception("No camera available.");
+                        }
 
-                            // Fetch all cameras known to Vimba
-                            List<Camera> cameras = vimbaHelper.CameraList;
-                            if (cameras.Count < 0)
+                        foreach (Camera currentCamera in cameras)
+                        {
+                            // Check if we can open the camera in full mode
+                            VmbAccessModeType accessMode = currentCamera.PermittedAccess;
+                            if (VmbAccessModeType.VmbAccessModeFull == (VmbAccessModeType.VmbAccessModeFull & accessMode))
                             {
-                                throw new Exception("No camera available.");
-                            }
-
-                            foreach (Camera currentCamera in cameras)
-                            {
-                                // Check if we can open the camera in full mode
-                                VmbAccessModeType accessMode = currentCamera.PermittedAccess;
-                                if (VmbAccessModeType.VmbAccessModeFull == (VmbAccessModeType.VmbAccessModeFull & accessMode))
-                                {
-                                    // Now get the camera ID
-                                    cameraID = currentCamera.Id;
-                                    break;
-                                }
-                            }
-
-                            if (null == cameraID)
-                            {
-                                throw new Exception("Could not open any camera.");
+                                // Now get the camera ID
+                                cameraID = currentCamera.Id;
+                                break;
                             }
                         }
 
-                        Console.WriteLine("Opening camera with ID: " + cameraID);
-
-                        // Start the continuous image acquisition 
-                        vimbaHelper.StartContinuousImageAcquisition(cameraID, showFrameInfos, path, exposure);
-
-                        Console.WriteLine("Press <enter> to stop acquisition...");
-                        Console.ReadKey();
-
-                        // Stop the image acquisition
-                        vimbaHelper.StopContinuousImageAcquisition();
-                        Console.WriteLine("\nAcquisition stopped.");
+                        if (null == cameraID)
+                        {
+                            throw new Exception("Could not open any camera.");
+                        }
                     }
-                    finally
-                    {
-                        // shutdown the vimba Api
-                        vimbaHelper.Shutdown();
-                    }
+
+                    Console.WriteLine("Opening camera with ID: " + cameraID);
+
+                    // Start the continuous image acquisition 
+                    vimbaHelper.StartContinuousImageAcquisition(cameraID, showFrameInfos);
+
+                    Console.WriteLine("Press <enter> to stop acquisition...");
+                    Console.ReadKey();
+
+                    // Stop the image acquisition
+                    vimbaHelper.StopContinuousImageAcquisition();
+                    Console.WriteLine("\nAcquisition stopped.");
+                }
+                finally
+                {
+                    // shutdown the vimba Api
+                    vimbaHelper.Shutdown();
                 }
             }
             catch (VimbaException ve)
@@ -139,67 +123,6 @@ namespace CameraTriggerSaver
 
             Console.WriteLine("Press any Key to exit!");
             Console.ReadKey();
-        }
-
-        /// <summary>
-        /// Parses the Command Line Arguments
-        /// </summary>
-        /// <param name="args">The command line arguments</param>
-        /// <param name="showFrameInfos">Flag to show frame information or not</param>
-        /// <param name="printhelp">Flag to decide if help information is shown</param>
-        /// <param name="cameraID">The camera ID</param>
-        /// <param name="path">Image folder save path</param>"
-        private static void ParseCommandLine(string[] args, ref VimbaHelper.FrameInfos showFrameInfos, ref bool printhelp, ref string cameraID, ref string path)
-        {
-            // Parse command line
-            foreach (string parameter in args)
-            {
-                if (parameter.Length < 0)
-                {
-                    throw new ArgumentException("Invalid parameter found.");
-                }
-
-                if (parameter.StartsWith("/"))
-                {
-                    if (string.Compare(parameter, "/i", StringComparison.Ordinal) == 0)
-                    {
-                        if (showFrameInfos != VimbaHelper.FrameInfos.Off || printhelp)
-                        {
-                            throw new ArgumentException("Invalid parameter found.");
-                        }
-
-                        showFrameInfos = VimbaHelper.FrameInfos.Show;
-                    }
-                    else
-                        if (string.Compare(parameter, "/a", StringComparison.Ordinal) == 0)
-                    {
-                        if (showFrameInfos != VimbaHelper.FrameInfos.Off || printhelp)
-                        {
-                            throw new ArgumentException("Invalid parameter found.");
-                        }
-
-                        showFrameInfos = VimbaHelper.FrameInfos.Automatic;
-                    }
-                    else
-                            if (string.Compare(parameter, "/h", StringComparison.Ordinal) == 0)
-                    {
-                        printhelp = true;
-                    }
-                    else
-                    {
-                        throw new ArgumentException("Invalid parameter found.");
-                    }
-                }
-                else
-                {
-                    if (null != path)
-                    {
-                        throw new ArgumentException("Invalid parameter found.");
-                    }
-
-                    path = parameter;
-                }
-            }
         }
     }
 }

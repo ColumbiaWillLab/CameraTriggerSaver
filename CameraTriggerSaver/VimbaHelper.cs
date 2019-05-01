@@ -45,15 +45,22 @@ namespace CameraTriggerSaver
         private Camera m_Camera = null;                         // Camera object if camera is open
         private bool m_Acquiring = false;                       // Flag to remember if acquisition is running
         private FrameInfos m_ShowFrameInfo = FrameInfos.Off;    // Indicates if frame info is shown in the console
-        private int systemTime = System.Environment.TickCount;  // Hold the system time to calculate the frame rate
         private ulong m_FrameID = 0;
         private string m_Path = null;
+        private int m_shotSize = 3;
+        private int m_shotTime = System.Environment.TickCount;
+        private int m_shotCounter = 0;
+        private static RingBitmap m_RingBitmap;
+
 
         /// <summary>
         /// Initializes a new instance of the VimbaHelper class
         /// </summary>
-        public VimbaHelper()
+        public VimbaHelper(string path, int shotSize)
         {
+            m_Path = path;
+            m_shotSize = shotSize;
+            m_RingBitmap = new RingBitmap(shotSize);
         }
 
         /// <summary>
@@ -157,8 +164,7 @@ namespace CameraTriggerSaver
         /// </summary>
         /// <param name="id">The camera ID</param>
         /// <param name="showCameraInfo">Flag to indicate if the Camera info data shall be shown or not</param>
-        /// <param name="path">Folder path for images</param>
-        public void StartContinuousImageAcquisition(string id, FrameInfos showCameraInfo, string path, int exposure)
+        public void StartContinuousImageAcquisition(string id, FrameInfos showCameraInfo)
         {
             // Check parameters
             if (null == id)
@@ -180,7 +186,6 @@ namespace CameraTriggerSaver
 
             // show camera info's in the console Output :
             m_ShowFrameInfo = showCameraInfo;
-            m_Path = path;
 
             // Open camera
             m_Camera = m_Vimba.OpenCameraByID(id, VmbAccessModeType.VmbAccessModeFull);
@@ -204,14 +209,24 @@ namespace CameraTriggerSaver
             bool error = true;
             try
             {
-                Console.Write("Available Triggers: ");
-                Console.WriteLine(string.Join(", ", m_Camera.Features["TriggerSource"].EnumValues));
+                Console.WriteLine("\nConfiguring Camera Parameters...");
+                //Console.Write("Available Triggers: ");
+                //Console.WriteLine(string.Join(", ", m_Camera.Features["TriggerSource"].EnumValues));
 
-                m_Camera.Features["ExposureTimeAbs"].IntValue = exposure;
+                m_Camera.Features["ExposureMode"].EnumValue = "TriggerWidth";
                 m_Camera.Features["TriggerSelector"].EnumValue = "FrameStart";
                 m_Camera.Features["TriggerSource"].EnumValue = "Line1";
                 m_Camera.Features["TriggerActivation"].EnumValue = "RisingEdge";
                 m_Camera.Features["TriggerMode"].EnumValue = "On";
+
+                Console.WriteLine("ExposureMode: " + m_Camera.Features["ExposureMode"].EnumValue);
+                Console.WriteLine("TriggerSelector: " + m_Camera.Features["TriggerSelector"].EnumValue);
+                Console.WriteLine("TriggerSource: " + m_Camera.Features["TriggerSource"].EnumValue);
+                Console.WriteLine("TriggerActivation: " + m_Camera.Features["TriggerActivation"].EnumValue);
+                Console.WriteLine("TriggerMode: " + m_Camera.Features["TriggerMode"].EnumValue);
+                Console.WriteLine("Saving to: " + m_Path);
+
+                Console.WriteLine("\nReady for imaging!\n");
 
                 // Register frame callback
                 m_Camera.OnFrameReceived += this.OnFrameReceived;
@@ -220,7 +235,7 @@ namespace CameraTriggerSaver
                 m_Acquiring = true;
 
                 // Start synchronous image acquisition (grab)
-                m_Camera.StartContinuousImageAcquisition(3);
+                m_Camera.StartContinuousImageAcquisition(m_shotSize);
 
                 error = false;
             }
@@ -262,17 +277,12 @@ namespace CameraTriggerSaver
         private void OutPutFrameInfo(Frame frame)
         {
             bool showFrameInfo = false;
-            double frameRate = 0;
-            string status = string.Empty;
 
             if (null == frame)
             {
                 throw new ArgumentNullException("frame");
             }
-
-            frameRate = CalcFPS(); // Get frame rate
-
-            status = GetFrameStatus(frame); // Get frame status
+            string status = GetFrameStatus(frame); // Get frame status
 
             ulong nFramesMissing = GetFramesMissing(frame);
             if (0 < nFramesMissing)
@@ -298,7 +308,6 @@ namespace CameraTriggerSaver
                 Console.Write(frame.FrameID);
 
                 Console.Write(" Status:");
-
                 Console.Write(status);
 
                 Console.Write(" Size:");
@@ -308,21 +317,7 @@ namespace CameraTriggerSaver
                 Console.Write(frame.Height);
 
                 Console.Write(" Format:");
-                Console.Write(frame.PixelFormat);
-
-                Console.Write(" Temp:");
-                Console.WriteLine(m_Camera.Features["DeviceTemperature"].FloatValue);
-                  
-                //Console.Write(" FPS:");
-
-                //if (!double.IsNaN(frameRate) && !double.IsInfinity(frameRate) && nFramesMissing <= 0)
-                //{
-                //    Console.WriteLine(frameRate.ToString("0.0"));
-                //}
-                //else
-                //{
-                //    Console.WriteLine("?");
-                //}
+                Console.WriteLine(frame.PixelFormat);
             }
             else
             {
@@ -355,21 +350,6 @@ namespace CameraTriggerSaver
             m_FrameID = frame.FrameID;
 
             return missingFrames;
-        }
-
-        /// <summary>
-        /// Calculates the Frame rate
-        /// </summary>
-        /// <returns>The frame rate</returns>
-        private double CalcFPS()
-        {
-            int sytemTimeLocal = System.Environment.TickCount;
-
-            double fps = 1000 / (double)(sytemTimeLocal - systemTime);
-
-            systemTime = sytemTimeLocal;
-
-            return fps;
         }
 
         /// <summary>
@@ -416,26 +396,34 @@ namespace CameraTriggerSaver
         {
             try
             {
+                if (m_shotCounter == 0 || m_shotCounter > m_shotSize)
+                {
+                    double temp = m_Camera.Features["DeviceTemperature"].FloatValue;
+                    m_shotCounter = 1;
+                    m_shotTime = System.Environment.TickCount;
+                    Console.WriteLine("\nShot: " + m_shotTime.ToString());
+                    Console.WriteLine("Temp: " + temp.ToString());
+                    if (temp >= 55)
+                    {
+                        Console.WriteLine("***********TEMPERATURE WARNING***********");
+                    }
+                }
+
                 // Convert frame into displayable image
                 OutPutFrameInfo(frame);
 
-                System.Drawing.Image img = ConvertFrame(frame);
+                m_RingBitmap.FillNextBitmap(frame);
+                Image img = m_RingBitmap.Image;
 
-                string path = m_Path;
-                if (null == path)
-                {
-                    path = ".\\";
-                }
-                path = Path.Combine(path, System.Environment.TickCount.ToString() + ".bmp");
+                string path = Path.Combine(m_Path, m_shotTime.ToString() + "-" + m_shotCounter.ToString() + ".bmp");
                 img.Save(path);
-                Console.WriteLine(path);
-                Console.WriteLine();
             }
             finally
             {
                 // We make sure to always return the frame to the API
                 try
                 {
+                    m_shotCounter++;
                     m_Camera.QueueFrame(frame);
                 }
                 catch
