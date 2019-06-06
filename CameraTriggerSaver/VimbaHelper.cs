@@ -48,8 +48,8 @@ namespace CameraTriggerSaver
         private ulong m_FrameID = 0;
         private string m_Path = null;
         private int m_shotSize = 3;
-        private int m_shotTime = System.Environment.TickCount;
         private int m_shotCounter = 0;
+        private DateTime m_shotTime = DateTime.Now;
         private static RingBitmap m_RingBitmap;
 
 
@@ -400,8 +400,8 @@ namespace CameraTriggerSaver
                 {
                     double temp = m_Camera.Features["DeviceTemperature"].FloatValue;
                     m_shotCounter = 1;
-                    m_shotTime = System.Environment.TickCount;
-                    Console.WriteLine("\nShot: " + m_shotTime.ToString());
+                    m_shotTime = DateTime.Now;
+                    Console.WriteLine("\nShot: " + m_shotTime.ToString("s"));
                     Console.WriteLine("Temp: " + temp.ToString());
                     if (temp >= 55)
                     {
@@ -415,7 +415,8 @@ namespace CameraTriggerSaver
                 m_RingBitmap.FillNextBitmap(frame);
                 Image img = m_RingBitmap.Image;
 
-                string path = Path.Combine(m_Path, m_shotTime.ToString() + "-" + m_shotCounter.ToString() + ".bmp");
+                string path = Path.Combine(m_Path, m_shotTime.ToString("yyyy-MM-ddTHHmmss") + "-" + m_shotCounter.ToString() + ".bmp");
+                Console.WriteLine(path.ToString());
                 img.Save(path);
             }
             finally
