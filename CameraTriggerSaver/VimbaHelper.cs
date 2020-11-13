@@ -420,13 +420,7 @@ namespace CameraTriggerSaver
                 m_RingBitmap.FillNextBitmap(frame);
                 Image img = m_RingBitmap.Image;
                 /// Conditional renaming depending on shot #. Only 3 and 4 shots considered
-                if (m_shotSize == 3)
-                {
-                    string path = Path.Combine(m_Path, m_shotTime.ToString("yyyy-MM-ddTHHmmss") + "-" + m_shotCounter.ToString() + ".bmp");
-                    Console.WriteLine(path.ToString());
-                    img.Save(path);
-                }
-                else if (m_shotSize == 4)
+                if (m_shotSize == 4)
                 {
                     int m_newshotCounter = m_shotCounter - 1;
                     string path = Path.Combine(m_Path, m_shotTime.ToString("yyyy-MM-ddTHHmmss") + "-" + m_newshotCounter.ToString() + ".bmp");
@@ -439,6 +433,7 @@ namespace CameraTriggerSaver
                     Console.WriteLine(path.ToString());
                     img.Save(path);
                 }
+
 
                 //Console.WriteLine(path.ToString());
                 //img.Save(path);
