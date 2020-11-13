@@ -48,6 +48,7 @@ namespace CameraTriggerSaver
         private ulong m_FrameID = 0;
         private string m_Path = null;
         private int m_shotSize = 3;
+        private float m_GainValue = 0;
         private int m_shotCounter = 0;
         private DateTime m_shotTime = DateTime.Now;
         private static RingBitmap m_RingBitmap;
@@ -56,11 +57,13 @@ namespace CameraTriggerSaver
         /// <summary>
         /// Initializes a new instance of the VimbaHelper class
         /// </summary>
-        public VimbaHelper(string path, int shotSize)
+        public VimbaHelper(string path, int shotSize, float GainAmt)
         {
             m_Path = path;
             m_shotSize = shotSize;
+            m_GainValue = GainAmt;
             m_RingBitmap = new RingBitmap(shotSize);
+
         }
 
         /// <summary>
@@ -218,12 +221,14 @@ namespace CameraTriggerSaver
                 m_Camera.Features["TriggerSource"].EnumValue = "Line1";
                 m_Camera.Features["TriggerActivation"].EnumValue = "RisingEdge";
                 m_Camera.Features["TriggerMode"].EnumValue = "On";
+                m_Camera.Features["Gain"].FloatValue = m_GainValue;
 
                 Console.WriteLine("ExposureMode: " + m_Camera.Features["ExposureMode"].EnumValue);
                 Console.WriteLine("TriggerSelector: " + m_Camera.Features["TriggerSelector"].EnumValue);
                 Console.WriteLine("TriggerSource: " + m_Camera.Features["TriggerSource"].EnumValue);
                 Console.WriteLine("TriggerActivation: " + m_Camera.Features["TriggerActivation"].EnumValue);
                 Console.WriteLine("TriggerMode: " + m_Camera.Features["TriggerMode"].EnumValue);
+                Console.WriteLine("Gain: " + m_Camera.Features["Gain"].FloatValue);
                 Console.WriteLine("Saving to: " + m_Path);
 
                 Console.WriteLine("\nReady for imaging!\n");

@@ -44,7 +44,8 @@ namespace CameraTriggerSaver
         /// <param name="cameraID">Camera ID to open - leave blank for first available</param>
         /// <param name="path">Image save folder path</param>
         /// <param name="shotSize">Number of pictures in a shot</param>
-        private static void Main(string cameraID = null, string path = ".\\", int shotSize = 3)
+        /// <param name="GainAmt">Gain setting, default=0</param>
+        private static void Main(string cameraID = null, string path = ".\\", int shotSize = 3, float GainAmt = 0)
         {
             VimbaHelper.FrameInfos showFrameInfos = VimbaHelper.FrameInfos.Show;           // Show frame info's
 
@@ -55,7 +56,7 @@ namespace CameraTriggerSaver
             try
             {
                 // Create a new Vimba entry object
-                VimbaHelper vimbaHelper = new VimbaHelper(path, shotSize);
+                VimbaHelper vimbaHelper = new VimbaHelper(path, shotSize, GainAmt);
                 vimbaHelper.Startup(); // Startup API
                 Console.WriteLine("Vimba .NET API Version {0}", vimbaHelper.GetVersion());
 
